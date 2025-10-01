@@ -1,18 +1,11 @@
 const NodeCache = require('node-cache');
 const axios = require('axios');
 
-const cache = new NodeCache({ stdTTL: 600 }); // 10 min cache
+const cache = new NodeCache({ stdTTL: 600 }); // 10 min
 
-// Get player's region (assume NA for MVP)
-const getRegion = () => 'na';
-
-// Fetch MMR (rank + RR)
 const fetchMMR = async (puuid) => {
   try {
-    const res = await axios.get(
-      `https://api.henrikdev.xyz/valorant/v1/by-puuid/mmr/${getRegion()}/${puuid}`,
-      { timeout: 5000 }
-    );
+    const res = await axios.get(`https://api.henrikdev.xyz/valorant/v1/by-puuid/mmr/na/${puuid}`, { timeout: 5000 });
     return res.data.data;
   } catch (error) {
     console.error('MMR fetch error:', error.message);
@@ -20,11 +13,10 @@ const fetchMMR = async (puuid) => {
   }
 };
 
-// Fetch recent matches
 const fetchMatches = async (puuid) => {
   try {
     const res = await axios.get(
-      `https://api.henrikdev.xyz/valorant/v3/by-puuid/matches/${getRegion()}/${puuid}?filter=competitive&size=20`,
+      `https://api.henrikdev.xyz/valorant/v3/by-puuid/matches/na/${puuid}?filter=competitive&size=20`,
       { timeout: 8000 }
     );
     return res.data.data;
@@ -34,11 +26,10 @@ const fetchMatches = async (puuid) => {
   }
 };
 
-// Process stats from matches
 const calculateStats = (matches) => {
-  if (matches.length === 0) return null;
+  if (!matches || matches.length === 0) return null;
 
-  let kills = 0, deaths = 0, assists = 0, headshots = 0, rounds = 0, wins = 0;
+  let kills = 0, deaths = 0, headshots = 0, wins = 0;
   const agentCounts = {};
 
   for (const match of matches) {
@@ -47,12 +38,10 @@ const calculateStats = (matches) => {
 
     kills += player.stats.kills;
     deaths += player.stats.deaths;
-    assists += player.stats.assists;
     headshots += player.stats.headshots;
-    rounds += match.metadata.rounds_played;
-    if (match.teams[match.metadata.team].rounds_won > match.teams[match.metadata.team === 'Blue' ? 'Red' : 'Blue'].rounds_won) {
-      wins++;
-    }
+    const team = match.metadata.team;
+    const opponent = team === 'Blue' ? 'Red' : 'Blue';
+    if (match.teams[team].rounds_won > match.teams[opponent].rounds_won) wins++;
 
     const agent = player.character;
     agentCounts[agent] = (agentCounts[agent] || 0) + 1;
@@ -60,8 +49,7 @@ const calculateStats = (matches) => {
 
   const kd = deaths > 0 ? kills / deaths : kills;
   const hs = kills > 0 ? headshots / kills : 0;
-  const winRate = (wins / matches.length) * 100;
-
+  const winRate = matches.length > 0 ? (wins / matches.length) * 100 : 0;
   const topAgent = Object.entries(agentCounts).sort((a, b) => b[1] - a[1])[0];
   const agentPlayRate = topAgent ? Math.round((topAgent[1] / matches.length) * 100) : 0;
 
@@ -75,17 +63,14 @@ const calculateStats = (matches) => {
   };
 };
 
-// Public function
-exports.fetchPlayerCompetitiveStats = async (puuid) => {
+exports.fetchPlayerStats = async (puuid) => {
   const cacheKey = `stats_${puuid}`;
   const cached = cache.get(cacheKey);
   if (cached) return cached;
 
-  // Fetch MMR
   const mmrData = await fetchMMR(puuid);
   if (!mmrData || !mmrData.currenttierpatched) return null;
 
-  // Fetch matches
   const matches = await fetchMatches(puuid);
   const stats = calculateStats(matches);
   if (!stats) return null;

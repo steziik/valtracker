@@ -21,8 +21,6 @@ for (const file of commandFiles) {
   const command = require(filePath);
   if ('data' in command && 'execute' in command) {
     client.commands.set(command.data.name, command);
-  } else {
-    console.log(`[WARNING] The command at ${filePath} is missing a required "data" or "execute" property.`);
   }
 }
 
@@ -35,8 +33,8 @@ client.on('interactionCreate', async interaction => {
   try {
     await command.execute(interaction);
   } catch (error) {
-    console.error('Command execution error:', error);
-    await interaction.reply({ content: '❌ An error occurred while running this command.', ephemeral: true });
+    console.error('Command error:', error);
+    await interaction.reply({ content: '❌ Command failed.', ephemeral: true });
   }
 });
 
@@ -47,9 +45,9 @@ client.once('ready', async () => {
       require('./commands/link').data,
       require('./commands/stats').data,
     ]);
-    console.log('✅ Slash commands registered globally');
+    console.log('✅ Commands registered');
   } catch (err) {
-    console.error('Failed to register commands:', err);
+    console.error('Command registration failed:', err);
   }
 });
 

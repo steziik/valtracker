@@ -1,13 +1,12 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const { Pool } = require('pg');
-const { fetchPlayerCompetitiveStats } = require('../utils/riotApi');
+const { fetchPlayerStats } = require('../utils/riotApi');
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
 });
 
-// Rank color mapping (hex)
 const RANK_COLORS = {
   'unrated': 0x808080,
   'iron': 0x5a5a5a,
@@ -22,13 +21,13 @@ const RANK_COLORS = {
 };
 
 module.exports = {
-  data: new SlashCommandBuilder()
+   new SlashCommandBuilder()
     .setName('stats')
     .setDescription('📊 View Valorant stats')
     .addSubcommand(subcommand =>
       subcommand
         .setName('general')
-        .setDescription('General stats (last 20 competitive matches)')
+        .setDescription('General stats')
         .addUserOption(option => option.setName('player').setDescription('Player to lookup'))
     ),
 
@@ -39,26 +38,26 @@ module.exports = {
 
     try {
       const dbRes = await pool.query(
-        'SELECT riot_puuid FROM users WHERE discord_id = $1',
+        'SELECT riot_puuid, riot_tagline FROM users WHERE discord_id = $1',
         [target.id]
       );
 
       if (dbRes.rows.length === 0) {
-        return interaction.editReply(`${target} hasn't linked their account! Use \`/link\`.`);
+        return interaction.editReply(`${target} hasn't linked their account! Use \`/link Name#Tag\`.`);
       }
 
-      const puuid = dbRes.rows[0].riot_puuid;
-      const stats = await fetchPlayerCompetitiveStats(puuid);
+      const { riot_puuid: puuid, riot_tagline: displayName } = dbRes.rows[0];
+      const stats = await fetchPlayerStats(puuid);
 
-      if (!stats || !stats.currentRank) {
-        return interaction.editReply('No competitive stats found. Play some ranked matches!');
+      if (!stats) {
+        return interaction.editReply(`No competitive stats found for ${displayName}.`);
       }
 
       const rankKey = stats.currentRank.toLowerCase().split(' ')[0];
       const color = RANK_COLORS[rankKey] || 0x000000;
 
       const embed = new EmbedBuilder()
-        .setTitle(`${stats.name} #${stats.tag} — ${stats.currentRank}`)
+        .setTitle(`${displayName} — ${stats.currentRank}`)
         .setThumbnail(stats.rankIconUrl)
         .addFields(
           { name: 'RR', value: `${stats.rr} RR`, inline: true },
@@ -73,8 +72,8 @@ module.exports = {
 
       await interaction.editReply({ embeds: [embed] });
     } catch (error) {
-      console.error('Stats command error:', error);
-      await interaction.editReply('❌ Failed to load stats. Try again later.');
+      console.error('Stats error:', error);
+      await interaction.editReply('❌ Failed to load stats.');
     }
   },
 };
