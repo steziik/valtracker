@@ -2,13 +2,10 @@ const { SlashCommandBuilder } = require('discord.js');
 const { generatePrivacyNotice } = require('../utils/privacy');
 const crypto = require('crypto');
 
-// Share state with server.js (in production, use Redis)
-if (!global.oauthStates) global.oauthStates = new Map();
-
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('link')
-    .setDescription('🔗 Link your Valorant account via Riot Sign On'),
+    .setDescription('🔗 Link your Valorant account via Riot Sign On (RSO)'),
 
   async execute(interaction) {
     const state = crypto.randomBytes(16).toString('hex');
@@ -23,7 +20,7 @@ module.exports = {
     });
 
     await interaction.reply({
-      content: `🔒 **Secure Account Linking**\n\n${generatePrivacyNotice('short')}\n\n[Click here to link](${authUrl})`,
+      content: `🔒 **Secure Account Linking**\n\n${generatePrivacyNotice('short')}\n\n[Click here to link your Valorant account](${authUrl})`,
       ephemeral: true,
     });
   },
